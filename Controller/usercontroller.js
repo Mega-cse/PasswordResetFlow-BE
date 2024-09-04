@@ -4,6 +4,8 @@ import nodemailer from "nodemailer";
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
+
+//Get all User
 export const getUserDetail = async (req, res) => {
     try {
         const users = await User.find();
@@ -13,6 +15,7 @@ export const getUserDetail = async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 };
+//Register
 
 export const registerUser = async (req, res) => {
     try {
@@ -45,27 +48,17 @@ export const registerUser = async (req, res) => {
 };
 
 
-
+//Login
 export const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
-
-        // Find the user by email
         const user = await User.findOne({ email });
         if (!user) {
             return res.status(401).json({ message: "User not found" });
         }
 
-        // Debugging: Log the provided and stored passwords
         console.log('Provided password:', password);
          console.log('Stored password:', user.password);
-
-        // // Check if the provided password matches the stored password
-        // if (user.password.trim() !== password.trim()) {
-        //     return res.status(401).json({ message: "Invalid password" });
-        // }
-
-        // Generate a token
         const token = jwt.sign({ _id: user._id }, process.env.SECRET_KEY, { expiresIn: '1h' });
 
         res.status(200).json({
@@ -83,26 +76,21 @@ export const loginUser = async (req, res) => {
     }
 };
 
+//Forgot Password
 
 export const forgetPassword = async (req, res) => {
     try {
         const { email } = req.body;
-
-        // Find the user by email
         const user = await User.findOne({ email });
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
-
-        // Generate a reset token and expiration timestamp
         const randomString = crypto.randomBytes(20).toString('hex');
         const expirationTimestamp = Date.now() + 3600000; // 1 hour
 
         user.randomString = randomString;
         user.expirationTimestamp = expirationTimestamp;
         await user.save();
-
-        // Configure the mail transporter
         const transporter = nodemailer.createTransport({
             service: 'Gmail',
             auth: {
@@ -111,10 +99,8 @@ export const forgetPassword = async (req, res) => {
             }
         });
         
-        // Create the reset URL
+
         const resetURL = `${process.env.RESET_URL}/reset-password/${randomString}`;
-        
-        // Send the email
         await transporter.sendMail({
             from: process.env.MAIL,
             to: user.email,
@@ -134,16 +120,17 @@ export const forgetPassword = async (req, res) => {
         res.status(500).json({ message: 'Internal Server Error' });
     }
 };
+
+
+//ResetPassword
 export const resetPassword = async (req, res) => {
     try {
-        const { token } = req.params; // Extract the token from the URL parameters
+        const { token } = req.params;
         const { newPassword } = req.body;
 
-        // Log the received token and the current time
         console.log('Received token:', token);
         console.log('Current time:', Date.now());
 
-        // Find the user by token and check token expiration
         const user = await User.findOne({
             randomString: token,
             expirationTimestamp: { $gt: Date.now() }
@@ -154,15 +141,11 @@ export const resetPassword = async (req, res) => {
             return res.status(400).json({ message: "Invalid or expired reset token" });
         }
 
-        // Validate new password
         if (!newPassword) {
             return res.status(400).json({ message: "New password is required" });
         }
 
-        // Hash the new password
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-        // Update the user's password and clear the reset token and expiration
         user.password = hashedPassword;
         user.randomString = null;
         user.expirationTimestamp = null;
